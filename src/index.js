@@ -1,56 +1,90 @@
 import './css/styles.css';
 import debounce from 'lodash.debounce';
 import { Notify } from 'notiflix';
-import { fetchCountries } from './fetchCountries';
+import fetchCountries from './fetchCountries';
 
-// Получить ссылки на элементы DOM
-const countriesList = document.querySelector('.countries-list');
-const searchInput = document.querySelector('.search-input');
+const DEBOUNCE_DELAY = 300;
 
-// Создать функцию для отображения информации о странах на странице
-function displayCountries(countries) {
-  const html = countries
+const inputEl = document.querySelector('#search-box');
+const countryListEl = document.querySelector('.country-list');
+const countryInfoEl = document.querySelector('.country-info');
+
+inputEl.addEventListener('input', debounce(searchCountry, DEBOUNCE_DELAY));
+
+function resetMarkup() {
+countryListEl.innerHTML = '';
+countryInfoEl.innerHTML = '';
+}
+
+function searchCountry(e) {
+let countryInSearch = e.target.value.trim();
+fetchCountries(countryInSearch)
+.then(country => {
+if (country.length > 10) {
+Notify.info(
+'Too many matches found. Please enter a more specific name.'
+);
+resetMarkup();
+} else if (country.length <= 10 && country.length >= 2) {
+renderInfoMarkup(country);
+} else {
+renderCardMarkup(country);
+}
+})
+.catch(error => {
+Notify.failure('Oops, there is no country with that name');
+console.log(error);
+resetMarkup();
+});
+}
+
+function renderInfoMarkup(countries) {
+  const markup = countries
     .map(
-      country => `
-        <div class="country">
-          <img class="flag" src="${country.flags.png}" alt="${country.name.common} Flag">
-          <h2 class="name">${country.name.common}</h2>
-          <p class="population">Population: ${country.population.toLocaleString()}</p>
-          <p class="region">Region: ${country.region}</p>
-          <p class="capital">Capital: ${country.capital}</p>
-        </div>
-      `
+      ({ name, flags }) => `<li>
+        <img src="${flags.svg}" alt="flags" width ="20" height ="15">
+        <p class="country-name">${name.official}</p>
+        </li>`
     )
     .join('');
-  countriesList.innerHTML = html;
+  resetMarkup();
+  countryListEl.innerHTML = markup; 
 }
 
-// Создать функцию для фильтрации стран по введенному пользователем тексту
-function searchCountries(countries, searchText) {
-  return countries.filter(country => country.name.common.toLowerCase().includes(searchText.toLowerCase()));
+function renderCardMarkup(countries) {
+  const markup = countries
+    .map(
+      ({ name, capital, flags, population, languages }) => `<div>
+        <img src="${flags.svg}" alt="flags" width ="30" height ="20">
+            <h2 class="country-title">${name.official}</h2>
+            </div>
+            <ul>
+            <li> <b>Capital</b>:
+          <span>${capital}</span>
+            </li>
+            <li> <b>Population</b>:
+          <span>${population.toLocaleString()}</span> // изменено
+            </li>
+            <li> <b>Languages</b>:
+          <span>${Object.values(languages).join(', ')}</span>
+            </li>
+        </ul>`
+    )
+    .join('');
+  resetMarkup();
+  countryInfoEl.innerHTML = markup; 
 }
 
-// Создать функцию для обработки событий ввода текста в поле поиска
-function handleSearch() {
-  const searchText = searchInput.value.trim();
-  const filteredCountries = searchCountries(countries, searchText);
-  if (filteredCountries.length > 10) {
-    Notify.info('Too many matches found. Please enter a more specific name.');
-    return;
-  }
-  if (filteredCountries.length === 0) {
-    Notify.failure('No matches found. Please enter a valid name.');
-    return;
-  }
-  displayCountries(filteredCountries);
+
+inputEl.addEventListener('keydown', e => {
+if (e.code === 'Enter') {
+searchCountry(e);
 }
-
-// Инициализировать приложение
-let countries = [];
-
-fetchCountries().then(data => {
-  countries = data;
-  displayCountries(countries);
 });
 
-searchInput.addEventListener('input', debounce(handleSearch, 500));
+inputEl.addEventListener('input', () => {
+window.scrollTo({
+top: 0,
+behavior: 'smooth',
+});
+});
